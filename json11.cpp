@@ -335,7 +335,7 @@ struct JsonParser final {
 
     /* State
      */
-    const string &str;
+    const string_view &str;
     size_t i;
     string &err;
     bool failed;
@@ -362,7 +362,7 @@ struct JsonParser final {
      * Advance until the current character is non-whitespace.
      */
     void consume_whitespace() {
-        while (str[i] == ' ' || str[i] == '\r' || str[i] == '\n' || str[i] == '\t')
+        while (i < str.length() && (str[i] == ' ' || str[i] == '\r' || str[i] == '\n' || str[i] == '\t'))
             i++;
     }
 
@@ -372,7 +372,7 @@ struct JsonParser final {
      */
     bool consume_comment() {
       bool comment_found = false;
-      if (str[i] == '/') {
+      if (i < str.size() && str[i] == '/') {
         i++;
         if (i == str.size())
           return fail("unexpected end of input inside comment", 0);
@@ -502,7 +502,7 @@ struct JsonParser final {
 
             if (ch == 'u') {
                 // Extract 4-byte escape sequence
-                string esc = str.substr(i, 4);
+                string esc = static_cast<std::string>(str.substr(i, 4));
                 // Explicitly check length of the substring. The following loop
                 // relies on std::string returning the terminating NUL when
                 // accessing str[length]. Checking here reduces brittleness.
@@ -583,7 +583,7 @@ struct JsonParser final {
 
         if (str[i] != '.' && str[i] != 'e' && str[i] != 'E'
                 && (i - start_pos) <= static_cast<size_t>(std::numeric_limits<int>::digits10)) {
-            return std::atoi(str.c_str() + start_pos);
+            return std::atoi(static_cast<std::string>(str.substr(start_pos)).c_str());
         }
 
         // Decimal part
@@ -610,7 +610,7 @@ struct JsonParser final {
                 i++;
         }
 
-        return std::strtod(str.c_str() + start_pos, nullptr);
+        return std::strtod(static_cast<std::string>(str.substr(start_pos)).c_str(), nullptr);
     }
 
     /* expect(str, res)
@@ -618,14 +618,14 @@ struct JsonParser final {
      * Expect that 'str' starts at the character that was just read. If it does, advance
      * the input and return res. If not, flag an error.
      */
-    Json expect(const string &expected, Json res) {
+    Json expect(const string_view &expected, Json res) {
         assert(i != 0);
         i--;
         if (str.compare(i, expected.length(), expected) == 0) {
             i += expected.length();
             return res;
         } else {
-            return fail("parse error: expected " + expected + ", got " + str.substr(i, expected.length()));
+            return fail("parse error: expected " + static_cast<std::string>(expected) + ", got " + static_cast<std::string>(str.substr(i, expected.length())));
         }
     }
 
@@ -721,7 +721,7 @@ struct JsonParser final {
 };
 }//namespace {
 
-Json Json::parse(const string &in, string &err, JsonParse strategy) {
+Json Json::parse(const string_view &in, string &err, JsonParse strategy) {
     JsonParser parser { in, 0, err, false, strategy };
     Json result = parser.parse_json(0);
 
@@ -734,7 +734,7 @@ Json Json::parse(const string &in, string &err, JsonParse strategy) {
 }
 
 // Documented in json11.hpp
-vector<Json> Json::parse_multi(const string &in,
+vector<Json> Json::parse_multi(const string_view &in,
                                std::string::size_type &parser_stop_pos,
                                string &err,
                                JsonParse strategy) {
