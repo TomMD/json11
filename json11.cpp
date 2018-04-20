@@ -54,21 +54,26 @@ static void dump(NullStruct, string &out) {
     out += "null";
 }
 
-static void dump(double value, string &out) {
-    if (std::isfinite(value)) {
-        char buf[32];
-        snprintf(buf, sizeof buf, "%.17g", value);
+static void dump(void* value, string &out, bool integral) {
+    char buf[sizeof value];
+
+    if(integral) {
+        snprintf(buf, sizeof buf, "%d", *((long*)value));
         out += buf;
     } else {
-        out += "null";
+        if(std::isfinite(*((double*)value))) {
+            snprintf(buf, sizeof buf, "%.17g", *((double*)value));
+            out += buf;
+        } else {
+            out += "null";
+        }
     }
 }
 
-static void dump(int value, string &out) {
-    char buf[32];
-    snprintf(buf, sizeof buf, "%d", value);
-    out += buf;
-}
+static void dump(short value, string &out) { dump((void*)&value, out, true); }
+static void dump(int value, string &out) { dump((void*)&value, out, true); }
+static void dump(long value, string &out) { dump((void*)&value, out, true); }
+static void dump(double value, string &out) { dump((void*)&value, out, false); }
 
 static void dump(bool value, string &out) {
     out += value ? "true" : "false";
@@ -172,20 +177,46 @@ protected:
 
 class JsonDouble final : public Value<Json::NUMBER, double> {
     double number_value() const override { return m_value; }
+    short short_value() const override { return static_cast<short>(m_value); }
     int int_value() const override { return static_cast<int>(m_value); }
+    long long_value() const override { return static_cast<long>(m_value); }
     bool equals(const JsonValue * other) const override { return m_value == other->number_value(); }
     bool less(const JsonValue * other)   const override { return m_value <  other->number_value(); }
 public:
     explicit JsonDouble(double value) : Value(value) {}
 };
 
+class JsonShort final : public Value<Json::NUMBER, short> {
+    double number_value() const override { return m_value; }
+    short short_value() const override { return m_value; }
+    int int_value() const override { return m_value; }
+    long long_value() const override { return m_value; }
+    bool equals(const JsonValue * other) const override { return m_value == other->number_value(); }
+    bool less(const JsonValue * other)   const override { return m_value <  other->number_value(); }
+public:
+    explicit JsonShort(short value) : Value(value) {}
+};
+
 class JsonInt final : public Value<Json::NUMBER, int> {
     double number_value() const override { return m_value; }
+    short short_value() const override { return m_value; }
     int int_value() const override { return m_value; }
+    long long_value() const override { return m_value; }
     bool equals(const JsonValue * other) const override { return m_value == other->number_value(); }
     bool less(const JsonValue * other)   const override { return m_value <  other->number_value(); }
 public:
     explicit JsonInt(int value) : Value(value) {}
+};
+
+class JsonLong final : public Value<Json::NUMBER, long> {
+    double number_value() const override { return m_value; }
+    short short_value() const override { return m_value; }
+    int int_value() const override { return m_value; }
+    long long_value() const override { return m_value; }
+    bool equals(const JsonValue * other) const override { return m_value == other->number_value(); }
+    bool less(const JsonValue * other)   const override { return m_value <  other->number_value(); }
+public:
+    explicit JsonLong(long value) : Value(value) {}
 };
 
 class JsonBoolean final : public Value<Json::BOOL, bool> {
@@ -253,7 +284,9 @@ static const Json & static_null() {
 Json::Json() noexcept                  : m_ptr(statics().null) {}
 Json::Json(std::nullptr_t) noexcept    : m_ptr(statics().null) {}
 Json::Json(double value)               : m_ptr(make_shared<JsonDouble>(value)) {}
+Json::Json(short value)               : m_ptr(make_shared<JsonShort>(value)) {}
 Json::Json(int value)                  : m_ptr(make_shared<JsonInt>(value)) {}
+Json::Json(long value)               : m_ptr(make_shared<JsonLong>(value)) {}
 Json::Json(bool value)                 : m_ptr(value ? statics().t : statics().f) {}
 Json::Json(const string &value)        : m_ptr(make_shared<JsonString>(value)) {}
 Json::Json(string &&value)             : m_ptr(make_shared<JsonString>(move(value))) {}
@@ -269,7 +302,9 @@ Json::Json(Json::object &&values)      : m_ptr(make_shared<JsonObject>(move(valu
 
 Json::Type Json::type()                           const { return m_ptr->type();         }
 double Json::number_value()                       const { return m_ptr->number_value(); }
+short Json::short_value()                         const { return m_ptr->short_value();  }
 int Json::int_value()                             const { return m_ptr->int_value();    }
+long Json::long_value()                           const { return m_ptr->long_value();   }
 bool Json::bool_value()                           const { return m_ptr->bool_value();   }
 const string & Json::string_value()               const { return m_ptr->string_value(); }
 const vector<Json> & Json::array_items()          const { return m_ptr->array_items();  }
@@ -278,7 +313,9 @@ const Json & Json::operator[] (size_t i)          const { return (*m_ptr)[i];   
 const Json & Json::operator[] (const string &key) const { return (*m_ptr)[key];         }
 
 double                    JsonValue::number_value()              const { return 0; }
+short                     JsonValue::short_value()               const { return 0; }
 int                       JsonValue::int_value()                 const { return 0; }
+long                      JsonValue::long_value()                const { return 0; }
 bool                      JsonValue::bool_value()                const { return false; }
 const string &            JsonValue::string_value()              const { return statics().empty_string; }
 const vector<Json> &      JsonValue::array_items()               const { return statics().empty_vector; }
@@ -590,8 +627,14 @@ struct JsonParser final {
         }
 
         if (str[i] != '.' && str[i] != 'e' && str[i] != 'E'
-                && (i - start_pos) <= static_cast<size_t>(std::numeric_limits<int>::digits10)) {
-            return std::atoi(str.c_str() + start_pos);
+                && (i - start_pos) <= static_cast<size_t>(std::numeric_limits<long>::max())) {
+            long result = std::atol(str.c_str() + start_pos);
+            if(std::numeric_limits<short>::min() <= result && std::numeric_limits<short>::max() >= result)
+                return (short)result;
+            else if(std::numeric_limits<int>::min() <= result && std::numeric_limits<int>::max() >= result)
+                return (int)result;
+            else // if(std::numeric_limits<long>::min() <= result && std::numeric_limits<long>::max() >= result)
+                return result;
         }
 
         // Decimal part
