@@ -6,6 +6,10 @@ else()
   project(json11 VERSION 1.0.0 LANGUAGES CXX)
 endif()
 
+if(NOT CMAKE_DEBUG_POSTFIX)
+  set(CMAKE_DEBUG_POSTFIX d)
+endif()
+
 enable_testing()
 
 option(JSON11_BUILD_TESTS "Build unit tests" OFF)
