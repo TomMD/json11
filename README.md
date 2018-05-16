@@ -13,16 +13,19 @@ Json::parse (static) to parse a std::string as a Json object.
 
 It's easy to make a JSON object with C++11's new initializer syntax:
 
+```cpp
     Json my_json = Json::object {
         { "key1", "value1" },
         { "key2", false },
         { "key3", Json::array { 1, 2, 3 } },
     };
     std::string json_str = my_json.dump();
+```
 
 There are also implicit constructors that allow standard and user-defined types to be
 automatically converted to JSON. For example:
 
+```cpp
     class Point {
     public:
         int x;
@@ -33,10 +36,13 @@ automatically converted to JSON. For example:
 
     std::vector<Point> points = { { 1, 2 }, { 10, 20 }, { 100, 200 } };
     std::string points_json = Json(points).dump();
+```
 
 JSON values can have their values queried and inspected:
 
+```cpp
     Json json = Json::array { Json::object { { "k", "v" } } };
     std::string str = json[0]["k"].string_value();
+```
 
 More documentation is still to come. For now, see json11.hpp.
