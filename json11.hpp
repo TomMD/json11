@@ -229,4 +229,26 @@ protected:
     virtual ~JsonValue() {}
 };
 
+struct JsonParserPriv;
+
+class JsonParser {
+public:
+    JsonParser();
+    JsonParser(JsonParse strategy);
+    ~JsonParser();
+
+    Json json();
+    void consume(const std::string &in);
+    void reset();
+
+
+    const std::string &last_error() const {
+        return error;
+    }
+
+private:
+    std::string error;
+    std::unique_ptr<JsonParserPriv> parser;
+};
+
 } // namespace json11
