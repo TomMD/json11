@@ -50,6 +50,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <string>
 #include <vector>
 #include <map>
@@ -58,6 +59,50 @@
 
 namespace json11 {
 
+//the interface similar to std::basic_string_view from c++17
+//when c++17 become common feature for gcc/clang/icc/msvc
+//code below can be replace with include <string_view>
+class string_view final {
+public:
+    using size_type = size_t;
+    using traits_type = std::char_traits<char>;
+    using const_reference =	const char &;
+
+    constexpr string_view() noexcept: m_len{0}, m_data{nullptr} {}
+    constexpr string_view(const string_view &other) = default;
+    string_view(const std::string &str): m_len{str.length()}, m_data{str.data()} {}
+    constexpr string_view(const char *str, size_type n): m_len{n}, m_data{str} {}
+    constexpr string_view(const char *str): m_len{str == nullptr ? 0 : traits_type::length(str)}, m_data{str} {}
+    string_view &operator=(const string_view &) noexcept = default;
+    /*constexpr*/ const_reference operator[](size_type pos) const {
+        assert(pos < m_len);
+        return *(m_data + pos);
+    }
+    constexpr const char *data() const noexcept { return m_data; }
+    constexpr size_type size() const noexcept { return m_len; }
+    constexpr size_type length() const noexcept { return m_len; }
+    //should throw, but because of -fno-exception just assert
+    string_view substr(size_type pos, size_type n = std::string::npos) const {
+        assert(pos <= m_len);
+        return string_view{m_data + pos, std::min(n, size_type{m_len  - pos})};
+    }
+
+    int compare(string_view str) const noexcept {
+        int ret = traits_type::compare(m_data, str.m_data, std::min(m_len, str.m_len));
+        if (ret == 0)
+            ret = (m_len == str.m_len) ? 0 : m_len < str.m_len ? -1 : 1;
+        return ret;
+    }
+    int compare(size_type pos1, size_type count1, string_view str) const {
+        return substr(pos1, count1).compare(str);
+    }
+
+    explicit operator std::string() const { return {m_data, m_len}; }
+private:
+    size_type m_len;
+    const char *m_data;
+
+};
 enum JsonParse {
     STANDARD, COMMENTS
 };
@@ -149,14 +194,14 @@ public:
     }
 
     // Parse. If parse fails, return Json() and assign an error message to err.
-    static Json parse(const std::string & in,
+    static Json parse(const string_view & in,
                       std::string & err,
                       JsonParse strategy = JsonParse::STANDARD);
     static Json parse(const char * in,
                       std::string & err,
                       JsonParse strategy = JsonParse::STANDARD) {
         if (in) {
-            return parse(std::string(in), err, strategy);
+            return parse(string_view(in), err, strategy);
         } else {
             err = "null input";
             return nullptr;
@@ -164,13 +209,13 @@ public:
     }
     // Parse multiple objects, concatenated or separated by whitespace
     static std::vector<Json> parse_multi(
-        const std::string & in,
+        const string_view & in,
         std::string::size_type & parser_stop_pos,
         std::string & err,
         JsonParse strategy = JsonParse::STANDARD);
 
     static inline std::vector<Json> parse_multi(
-        const std::string & in,
+        const string_view & in,
         std::string & err,
         JsonParse strategy = JsonParse::STANDARD) {
         std::string::size_type parser_stop_pos;
